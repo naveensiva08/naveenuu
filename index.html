@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compare AWB Numbers and Weights</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.5/xlsx.full.min.js"></script>
+    <style>
+        body{
+            font-family: 'Times New Roman', Times, serif, sans-serif;
+            margin: 50px;
+        }
+        input[type="file"] {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+        }
+        .result {
+            margin-top: 20px;
+        }
+        button {
+            margin-top: 20px;
+        } 
+    </style>
+</head>
+<body>
+    <h1><center>COMPARE AWB NUMBER AND WEIGHT`</center></h1>
+    
+    <div>
+        <input type="file" id="file1" accept=".xlsx, .xls" />
+        <input type="file" id="file2" accept=".xlsx, .xls" />
+        <button onclick="compareAWB()">Compare</button>
+    </div>
+
+    <div class="result" id="result"></div>
+    <button id="downloadBtn" style="display: none;" onclick="downloadResult()">Download Result</button>
+
+    <script>
+        let sheet1Data = [];
+        let sheet2Data = [];
+        let matchedResults = [];
+
+        // Function to read the Excel file and extract data
+        function readExcel(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = e.target.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0]; // Assuming data is in the first sheet
+                const sheet = workbook.Sheets[sheetName];
+                const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                callback(rows);
+            };
+            reader.readAsBinaryString(file);
+        }
+
+        // Handle file uploads
+        document.getElementById('file1').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                readExcel(file, function(data) {
+                    sheet1Data = data;
+                    console.log("Sheet 1 Data: ", sheet1Data);
+                });
+            }
+        });
+
+        document.getElementById('file2').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                readExcel(file, function(data) {
+                    sheet2Data = data;
+                    console.log("Sheet 2 Data: ", sheet2Data);
+                });
+            }
+        });
+
+        // Function to compare AWB and Weight between the two sheets
+        function compareAWB() {
+            if (sheet1Data.length === 0 || sheet2Data.length === 0) {
+                alert('Please upload both Excel files.');
+                return;
+            }
+
+            matchedResults = [];
+            const sheet2Map = new Map();
+
+            // Assuming AWB number is in the first column and weight is in the second column in Sheet 2
+            for (let i = 1; i < sheet2Data.length; i++) {
+                const awb = sheet2Data[i][0];
+                const weight = sheet2Data[i][1];
+                if (awb && weight) {
+                    sheet2Map.set(awb, weight);
+                }
+            }
+
+            // Compare AWB from Sheet 1 with Sheet 2
+            for (let i = 1; i < sheet1Data.length; i++) {
+                const awb1 = sheet1Data[i][0];
+                const weight1 = sheet1Data[i][1];
+                if (sheet2Map.has(awb1)) {
+                    const weight2 = sheet2Map.get(awb1);
+                    matchedResults.push({
+                        awb: awb1,
+                        weight1: weight1,
+                        weight2: weight2
+                    });
+                }
+            }
+
+            // Display the results
+            if (matchedResults.length > 0) {
+                let resultHtml = "<table><thead><tr><th>AWB</th><th>Weight (Sheet 1)</th><th>Weight (Sheet 2)</th></tr></thead><tbody>";
+                matchedResults.forEach(result => {
+                    resultHtml += `<tr><td>${result.awb}</td><td>${result.weight1}</td><td>${result.weight2}</td></tr>`;
+                });
+                resultHtml += "</tbody></table>";
+                document.getElementById('result').innerHTML = resultHtml;
+                document.getElementById('downloadBtn').style.display = "block";
+            } else {
+                document.getElementById('result').innerHTML = "<p>No matching AWBs found between the two sheets.</p>";
+                document.getElementById('downloadBtn').style.display = "none";
+            }
+        }
+
+        // Function to download the matched results as an Excel file
+        function downloadResult() {
+            if (matchedResults.length === 0) {
+                alert('No results to download');
+                return;
+            }
+
+            // Convert matched results to a worksheet
+            const ws = XLSX.utils.json_to_sheet(matchedResults, {
+                header: ["AWB", "Weight (Sheet 1)", "Weight (Sheet 2)"]
+            });
+
+            // Create a new workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Matched Results");
+
+            // Export the workbook to Excel file
+            XLSX.writeFile(wb, "Matched_AWB_Results.xlsx");
+        }
+    </script>
+</body>
+</html>
